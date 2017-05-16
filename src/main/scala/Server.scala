@@ -1,20 +1,15 @@
 import java.util.UUID
 
 
-import akka.NotUsed
 import akka.actor._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{Message, TextMessage}
 import akka.stream.{ActorMaterializer, ClosedShape, FlowShape, OverflowStrategy}
 import akka.stream.scaladsl.{Flow, GraphDSL, Merge, Sink, Source}
-import akka.stream.scaladsl.GraphDSL.Implicits._
 import com.typesafe.config.{Config, ConfigFactory}
-import com.typesafe.sslconfig.util.ConfigLoader
-import sun.misc.resources.Messages_sv
 
 import concurrent.ExecutionContext.Implicits._
 import scala.io.StdIn
-import scala.util.Random
 
 sealed trait RoomMessage
 
@@ -27,6 +22,7 @@ case class UserLeft(userId: String) extends RoomMessage
 
 class ChatRoomActor(roomId: Int) extends Actor {
 
+  var host: Option[String] = None
   var participants = Map[String, ActorRef]()
 
   override def receive: Receive = {
@@ -49,10 +45,22 @@ class ChatRoomActor(roomId: Int) extends Actor {
     case UserJoined(userId, actorRef) =>
       participants.values.foreach(_ ! OfferRequest(userId))
       participants += userId -> actorRef
+      if(host.isEmpty) chooseNewHost()
 
     case UserLeft(userId) =>
       participants -= userId
+      if(host.contains(userId)) chooseNewHost()
 
+  }
+
+  def chooseNewHost(): Unit = {
+    participants.headOption match {
+      case Some((userId, actor)) =>
+        host = Some(userId)
+        actor ! BecomeHost(userId)
+      case _ =>
+        host = None
+    }
   }
 
 }

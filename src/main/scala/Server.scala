@@ -143,34 +143,37 @@ object ChatRooms {
   */
 
 
-object Server extends App {
+object Server {
 
-  val config = ConfigFactory.defaultApplication()
+  def main(args:Array[String]) = {
 
-  implicit val actorSystem = ActorSystem("akka-stream", config)
-  implicit val actorMaterializer = ActorMaterializer()
+    val config = ConfigFactory.defaultApplication()
 
-  val interface = "localhost"
-  val port = 8080
+    implicit val actorSystem = ActorSystem("akka-stream", config)
+    implicit val actorMaterializer = ActorMaterializer()
 
-  import akka.http.scaladsl.server.Directives._
+    val interface = args(0)
+    val port = args(1).toInt
 
-  val echoService: Flow[Message, Message, _] = Flow[Message].map {
-    case TextMessage.Strict(txt) => TextMessage(s"Echo: $txt")
-    case _ => TextMessage("Message not supported")
-  }
+    import akka.http.scaladsl.server.Directives._
 
-  val route = get {
-    pathEndOrSingleSlash {
-      handleWebSocketMessages(ChatRooms.findOrCreate(123).websocketFlow())
+    val echoService: Flow[Message, Message, _] = Flow[Message].map {
+      case TextMessage.Strict(txt) => TextMessage(s"Echo: $txt")
+      case _ => TextMessage("Message not supported")
     }
-  }
 
-  val bindingFuture = Http().bindAndHandle(route, interface, port).onSuccess {
-    case (binding) =>
-      println(s"Server is now online at http://$interface:$port. Press ENTER to stop it")
-      StdIn.readLine()
-      binding.unbind().onComplete(_ => actorSystem.terminate())
+    val route = get {
+      pathEndOrSingleSlash {
+        handleWebSocketMessages(ChatRooms.findOrCreate(123).websocketFlow())
+      }
+    }
+
+    val bindingFuture = Http().bindAndHandle(route, interface, port).onSuccess {
+      case (binding) =>
+        println(s"Server is now online at http://$interface:$port. Press ENTER to stop it")
+        StdIn.readLine()
+        binding.unbind().onComplete(_ => actorSystem.terminate())
+    }
   }
 
 }
